@@ -3,8 +3,11 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    port: 3000,
-    open: true
+  build: {
+    // This tells Vite not to worry about the backend files
+    rollupOptions: {
+      external: ['server.cjs']
+    },
+    outDir: 'dist'
   }
 })

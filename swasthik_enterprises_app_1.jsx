@@ -51,11 +51,68 @@ const ITEMS = {
 
 const EVENT_TYPES = ["Wedding / ಮದುವೆ", "Birthday / ಹುಟ್ಟುಹಬ್ಬ", "Housewarming / ಗೃಹಪ್ರವೇಶ", "Pooja / ಪೂಜೆ", "Reception", "Other"];
 
-// ── Firebase Integration ─────────────────────────────────────────────────────
-// Orders are now stored in Firebase Firestore
-// Make sure firebaseConfig.js is configured with your Firebase credentials
+// ── TELEGRAM LOGIC CONFIGURATION ─────────────────────────────────────────────
+const TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"; // <-- Put your active bot token here
+const TELEGRAM_CHAT_ID   = "YOUR_CHAT_ID_HERE";   // <-- Put your active chat ID here
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+async function sendTelegramMessage(messageText) {
+  if (TELEGRAM_BOT_TOKEN === "YOUR_BOT_TOKEN_HERE" || TELEGRAM_CHAT_ID === "YOUR_CHAT_ID_HERE") {
+    console.log("⚠️ Telegram credentials not configured. Skipping notification broadcast.");
+    return;
+  }
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: TELEGRAM_CHAT_ID,
+        text: messageText,
+        parse_mode: "Markdown",
+      }),
+    });
+    console.log("📱 Telegram notification pushed successfully!");
+  } catch (error) {
+    console.error("❌ Failed to broadcast Telegram update:", error);
+  }
+}
+
+function buildTelegramOrderTemplate(order) {
+  const itemLines = order.items
+    .map(it => `  • ${it.en} (${it.kn}) × ${it.qty}`)
+    .join("\n");
+
+  return (
+    `🎉 *NEW ORDER — Swasthik Enterprises*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔖 *Order No:* \`${order.orderNum}\`\n` +
+    `👤 *Name:* ${order.name}\n` +
+    `📞 *Phone:* ${order.phone}${order.phone2 ? " / " + order.phone2 : ""}\n` +
+    `📅 *Event Date:* ${order.eventDate || "N/A"}\n` +
+    `🔄 *Return Date:* ${order.returnDate || "N/A"}\n` +
+    `🎊 *Event Type:* ${order.eventType || "N/A"}\n` +
+    `📍 *Venue:* ${order.address || "N/A"}\n` +
+    `💳 *Payment:* ${order.payMode === "cash" ? "💵 Cash on Delivery" : "📲 UPI / Online"}\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `📦 *Items Ordered:*\n${itemLines}\n` +
+    (order.notes ? `━━━━━━━━━━━━━━━━━━━━\n📝 *Notes:* ${order.notes}\n` : "") +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🕐 ${order.placedAt}`
+  );
+}
+
+function buildTelegramStatusTemplate(order, newStatus) {
+  const emoji = { pending: "⏳", confirmed: "✅", delivered: "📦" };
+  return (
+    `${emoji[newStatus] || "🔄"} *Order Status Updated*\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔖 *Order:* \`${order.orderNum}\`\n` +
+    `👤 *Customer:* ${order.name}\n` +
+    `📞 *Phone:* ${order.phone}\n` +
+    `🔄 *New Status:* *${newStatus.toUpperCase()}*`
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [step, setStep] = useState(1);
   const [cart, setCart] = useState({});
@@ -81,14 +138,12 @@ export default function App() {
     });
   }
 
-  // Load orders from Firebase when admin panel opens
   useEffect(() => {
     if (showAdmin) {
       loadOrdersFromFirebase();
     }
   }, [showAdmin]);
 
-  // Load orders from Firebase
   async function loadOrdersFromFirebase() {
     try {
       setLoading(true);
@@ -115,7 +170,6 @@ export default function App() {
     if (!form.phone.trim()) { alert("Please enter your phone number."); return; }
     if (cartCount === 0) { alert("Please select at least one item."); goStep(1); return; }
 
-    // Show loading state
     setLoading(true);
 
     const num = "SW-" + Date.now().toString().slice(-5);
@@ -135,9 +189,9 @@ export default function App() {
       }),
     };
 
-    // Save to Firebase
     createOrder(order)
       .then(() => {
+        sendTelegramMessage(buildTelegramOrderTemplate(order));
         setStep(4);
         setLoading(false);
       })
@@ -164,7 +218,6 @@ export default function App() {
     setPayMode(""); setOrderNum(""); setStep(1);
   }
 
-  // PIN
   function tapPin(k) {
     setPinErr("");
     let next = pin;
@@ -175,7 +228,6 @@ export default function App() {
     if (next.length === 4) {
       if (next === "7777") {
         setPin(""); setShowPin(false);
-        // Load orders from Firebase
         loadOrdersFromFirebase();
         setShowAdmin(true);
       } else {
@@ -195,7 +247,7 @@ export default function App() {
     setLoading(true);
     updateOrderStatus(order.id, status)
       .then(() => {
-        // Update local state
+        sendTelegramMessage(buildTelegramStatusTemplate(order, status));
         const updatedOrders = [...orders];
         updatedOrders[orders.length - 1 - idx].status = status;
         setOrders(updatedOrders);
@@ -208,7 +260,7 @@ export default function App() {
       });
   }
 
-  const s = { // inline style shortcuts
+  const s = {
     gold: { color: GOLD },
     btn: (active) => ({
       padding: "12px 0", borderRadius: 8, border: "none", fontFamily: "inherit",
@@ -223,7 +275,6 @@ export default function App() {
     },
   };
 
-  // Current order items for step 4
   const orderItems = Object.entries(cart).map(([id, qty]) => {
     for (const cat of Object.values(ITEMS)) {
       const found = cat.find(i => i.id === id);
@@ -358,7 +409,13 @@ export default function App() {
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b5533", marginBottom: 5 }}>Return Date</label>
-                <input type="date" value={form.returnDate} onChange={e => setForm(p => ({ ...p, returnDate: e.target.value }))} style={s.input} />
+                <input 
+                  type="date" 
+                  value={form.returnDate} 
+                  min={form.eventDate} 
+                  onChange={e => setForm(p => ({ ...p, returnDate: e.target.value }))} 
+                  style={s.input} 
+                />
               </div>
             </div>
 
@@ -401,11 +458,11 @@ export default function App() {
             {payMode === "upi" && (
               <div style={{ textAlign: "center", background: "#fff", border: "1.5px solid #e0cfa8", borderRadius: 12, padding: 20, marginBottom: 20 }}>
                 <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 12 }}>Scan to Pay</p>
-                <QRCode value="upi://pay?pa=9980535818@upi&pn=Swasthik+Enterprises&cu=INR" size={180} />
+                <QRCode value="upi://pay?pa=madivalswasthik@okicici&pn=Swasthik+M&cu=INR" size={180} />
                 <p style={{ fontSize: 13, color: "#6b5533", marginTop: 10, lineHeight: 1.6 }}>
                   Scan with GPay, PhonePe, Paytm or any UPI app<br />
-                  <strong style={{ color: "#2a1f0a" }}>Swasthik Enterprises</strong><br />
-                  <span style={{ fontSize: 12 }}>UPI: 9980535818@upi</span>
+                  <strong style={{ color: "#2a1f0a" }}>Swasthik M</strong><br />
+                  <span style={{ fontSize: 12 }}>UPI: madivalswasthik@okicici</span>
                 </p>
                 <p style={{ fontSize: 12, color: "#6b5533", marginTop: 8 }}>After payment, take a screenshot and share it when we contact you.</p>
               </div>
@@ -591,7 +648,6 @@ export default function App() {
               <div style={{ textAlign: "center", marginTop: 16 }}>
                 <button onClick={() => { 
                   if (confirm("Delete ALL orders? This cannot be undone.")) { 
-                    // Delete all orders from Firebase
                     setLoading(true);
                     Promise.all(orders.map(o => deleteOrder(o.id)))
                       .then(() => {
@@ -618,7 +674,6 @@ export default function App() {
   );
 }
 
-// Items toggle sub-component
 function ItemsToggle({ items }) {
   const [open, setOpen] = useState(false);
   return (
@@ -639,37 +694,31 @@ function ItemsToggle({ items }) {
   );
 }
 
-// Simple QR Code renderer using canvas
 function QRCode({ value, size }) {
   const ref = useRef();
   useEffect(() => {
     if (!ref.current) return;
     const canvas = ref.current;
     const ctx = canvas.getContext("2d");
-    // Draw a placeholder QR-like visual with the UPI details shown as text
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = "#1a1207";
-    // Border
     ctx.fillRect(0, 0, size, 4); ctx.fillRect(0, size-4, size, 4);
     ctx.fillRect(0, 0, 4, size); ctx.fillRect(size-4, 0, 4, size);
-    // Corner squares
     [[8,8],[size-28,8],[8,size-28]].forEach(([x,y]) => {
       ctx.fillRect(x, y, 20, 20);
       ctx.fillStyle = "#fff"; ctx.fillRect(x+3, y+3, 14, 14);
       ctx.fillStyle = "#1a1207"; ctx.fillRect(x+6, y+6, 8, 8);
     });
-    // Data dots pattern
     ctx.fillStyle = "#1a1207";
     for(let r=0;r<15;r++) for(let c=0;c<15;c++) {
       if((r+c+r*c)%3===0 && !(r<4&&c<4) && !(r<4&&c>10) && !(r>10&&c<4))
         ctx.fillRect(8+c*12, 8+r*12, 8, 8);
     }
-    // UPI text
     ctx.fillStyle = "#1a1207";
     ctx.font = "bold 9px DM Sans, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("9980535818@upi", size/2, size-8);
+    ctx.fillText("madivalswasthik@okicici", size/2, size-8);
   }, [value, size]);
   return <canvas ref={ref} width={size} height={size} style={{ borderRadius: 6, border: "1px solid #e0cfa8" }} />;
 }
