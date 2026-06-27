@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Swasthik Enterprises</string>
+    <string name="title_activity_main">Swasthik Enterprises</string>
+    <string name="package_name">com.swasthik.enterprises</string>
+    <string name="custom_url_scheme">com.swasthik.enterprises</string>
+</resources>

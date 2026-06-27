@@ -1,5 +1,43 @@
 import { useState, useEffect, useRef } from "react";
-import { createOrder, getAllOrders, updateOrderStatus, deleteOrder } from "./firebaseService";
+
+// ── Local Backend API (Express on port 4000) ──────────────────────────────────
+const ADMIN_PIN = "7777";
+
+async function createOrder(orderData) {
+  const res = await fetch("/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(orderData),
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed to create order"); }
+  return (await res.json()).order;
+}
+
+async function getAllOrders() {
+  const res = await fetch("/api/orders", { headers: { "x-admin-pin": ADMIN_PIN } });
+  if (!res.ok) throw new Error("Failed to fetch orders");
+  return (await res.json()).orders;
+}
+
+async function updateOrderStatus(orderId, status) {
+  const res = await fetch(`/api/orders/${orderId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "x-admin-pin": ADMIN_PIN },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error("Failed to update status");
+  return true;
+}
+
+async function deleteOrder(orderId) {
+  const res = await fetch(`/api/orders/${orderId}`, {
+    method: "DELETE",
+    headers: { "x-admin-pin": ADMIN_PIN },
+  });
+  if (!res.ok) throw new Error("Failed to delete order");
+  return true;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 const GOLD = "#C9973A";
 const DEEP = "#1a1207";
@@ -52,8 +90,8 @@ const ITEMS = {
 const EVENT_TYPES = ["Wedding / ಮದುವೆ", "Birthday / ಹುಟ್ಟುಹಬ್ಬ", "Housewarming / ಗೃಹಪ್ರವೇಶ", "Pooja / ಪೂಜೆ", "Reception", "Other"];
 
 // ── TELEGRAM LOGIC CONFIGURATION ─────────────────────────────────────────────
-const TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"; // <-- Put your active bot token here
-const TELEGRAM_CHAT_ID   = "YOUR_CHAT_ID_HERE";   // <-- Put your active chat ID here
+const TELEGRAM_BOT_TOKEN = "8867419960:AAErKz2Nntvu5DWTZuETj-_DKWNWPZsYIkM";
+const TELEGRAM_CHAT_ID   = "6360146834";
 
 async function sendTelegramMessage(messageText) {
   if (TELEGRAM_BOT_TOKEN === "YOUR_BOT_TOKEN_HERE" || TELEGRAM_CHAT_ID === "YOUR_CHAT_ID_HERE") {

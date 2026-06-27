@@ -11,8 +11,8 @@ const DB_FILE  = path.join(__dirname, "db.json");
 // ─────────────────────────────────────────────────────────────────────────────
 //  TELEGRAM CONFIG  ← paste your values here after following setup guide
 // ─────────────────────────────────────────────────────────────────────────────
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN_HERE";
-const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || "YOUR_CHAT_ID_HERE";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "8867419960:AAErKz2Nntvu5DWTZuETj-_DKWNWPZsYIkM";
+const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || "6360146834";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ADMIN_PIN = "7777";

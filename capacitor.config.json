@@ -1,0 +1,8 @@
+{
+  "appId": "com.swasthik.enterprises",
+  "appName": "Swasthik Enterprises",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

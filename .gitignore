@@ -32,3 +32,6 @@ Thumbs.db
 *.tmp
 .cache/
 .vercel
+dev-dist/
+hello
+

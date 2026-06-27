@@ -2,17 +2,22 @@
   "name": "event",
   "version": "1.0.0",
   "description": "",
-  "main": "server.cjs",
+  "main": "backend/server.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server.cjs"
+    "server": "node backend/server.cjs",
+    "mobile:sync": "vite build && cap sync",
+    "mobile:android": "cap open android"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -23,6 +28,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^1.3.0"
   }
 }
