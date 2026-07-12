@@ -1,46 +1,122 @@
 import { useState, useEffect, useRef } from "react";
 
-// ── Local Backend API (Express on port 4000) ──────────────────────────────────
+// ── Local Backend API / Standalone Mobile APK Storage ──────────────────────────
 const ADMIN_PIN = "7777";
+const LOCAL_STORAGE_KEY = "swasthik_orders_db";
+
+function getLocalOrders() {
+  try {
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalOrders(orders) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(orders));
+  } catch (e) {
+    console.error("Failed to save orders to localStorage:", e);
+  }
+}
 
 async function createOrder(orderData) {
-  const res = await fetch("/api/orders", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(orderData),
-  });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed to create order"); }
-  return (await res.json()).order;
+  const newOrder = {
+    id: Date.now(),
+    ...orderData,
+  };
+
+  try {
+    const res = await fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orderData),
+    });
+    const contentType = res.headers.get("content-type");
+    if (res.ok && contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      return data.order || newOrder;
+    }
+  } catch (err) {
+    console.warn("Backend API unreachable or running standalone APK. Saving order locally.", err);
+  }
+
+  // Fallback for mobile APK / standalone offline mode
+  const orders = getLocalOrders();
+  orders.push(newOrder);
+  saveLocalOrders(orders);
+  return newOrder;
 }
 
 async function getAllOrders() {
-  const res = await fetch("/api/orders", { headers: { "x-admin-pin": ADMIN_PIN } });
-  if (!res.ok) throw new Error("Failed to fetch orders");
-  return (await res.json()).orders;
+  try {
+    const res = await fetch("/api/orders", { headers: { "x-admin-pin": ADMIN_PIN } });
+    const contentType = res.headers.get("content-type");
+    if (res.ok && contentType && contentType.includes("application/json")) {
+      const data = await res.json();
+      if (Array.isArray(data.orders)) return data.orders;
+    }
+  } catch (err) {
+    console.warn("Backend API unreachable. Loading local orders.", err);
+  }
+  return getLocalOrders();
 }
 
 async function updateOrderStatus(orderId, status) {
-  const res = await fetch(`/api/orders/${orderId}/status`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", "x-admin-pin": ADMIN_PIN },
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) throw new Error("Failed to update status");
+  try {
+    const res = await fetch(`/api/orders/${orderId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-admin-pin": ADMIN_PIN },
+      body: JSON.stringify({ status }),
+    });
+    const contentType = res.headers.get("content-type");
+    if (res.ok && contentType && contentType.includes("application/json")) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("Backend API unreachable. Updating status locally.", err);
+  }
+
+  const orders = getLocalOrders();
+  const index = orders.findIndex(o => String(o.id) === String(orderId) || String(o.orderNum) === String(orderId));
+  if (index !== -1) {
+    orders[index].status = status;
+    saveLocalOrders(orders);
+  }
   return true;
 }
 
 async function deleteOrder(orderId) {
-  const res = await fetch(`/api/orders/${orderId}`, {
-    method: "DELETE",
-    headers: { "x-admin-pin": ADMIN_PIN },
-  });
-  if (!res.ok) throw new Error("Failed to delete order");
+  try {
+    const res = await fetch(`/api/orders/${orderId}`, {
+      method: "DELETE",
+      headers: { "x-admin-pin": ADMIN_PIN },
+    });
+    const contentType = res.headers.get("content-type");
+    if (res.ok && contentType && contentType.includes("application/json")) {
+      return true;
+    }
+  } catch (err) {
+    console.warn("Backend API unreachable. Deleting order locally.", err);
+  }
+
+  let orders = getLocalOrders();
+  orders = orders.filter(o => String(o.id) !== String(orderId) && String(o.orderNum) !== String(orderId));
+  saveLocalOrders(orders);
   return true;
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GOLD = "#C9973A";
-const DEEP = "#1a1207";
+const GOLD = "#d97706";        // Sunrise Amber (Matches Logo Center & Stars)
+const DEEP = "#0f172a";        // Deep Slate Navy (Matches Logo Text & Dark Mode)
+const TEAL = "#0f766e";        // Vibrant Teal (Matches Logo Left Arch)
+const ROSE = "#e11d48";        // Ruby Rose (Matches Logo Right Arch)
+const BG_PAGE = "#fcfaf6";     // Clean Cream Off-White Background
+const BG_CARD_SEL = "#fff7ed"; // Soft Amber Light
+const BORDER_NORM = "#cbd5e1"; // Clean Slate Border
+const TXT_MAIN = "#0f172a";    // Primary Slate Text
+const TXT_MUTED = "#475569";   // Secondary Slate Text
 
 const ITEMS = {
   "🪑 Furniture & Seating": [
@@ -120,7 +196,7 @@ function buildTelegramOrderTemplate(order) {
     .join("\n");
 
   return (
-    `🎉 *NEW ORDER — Swasthik Enterprises*\n` +
+    `🎉 *NEW ORDER — Swasthik Event Management*\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `🔖 *Order No:* \`${order.orderNum}\`\n` +
     `👤 *Name:* ${order.name}\n` +
@@ -164,6 +240,62 @@ export default function App() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [firebaseError, setFirebaseError] = useState(null);
+  const [splashHide, setSplashHide] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
+  const [splashPct, setSplashPct] = useState(0);
+  const [swipeReady, setSwipeReady] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartRef = useRef(null);
+
+  function triggerSwipeUp() {
+    if (splashHide || splashDone) return;
+    setSplashHide(true);
+    setTimeout(() => setSplashDone(true), 650);
+  }
+
+  function handleTouchStart(e) {
+    if (!swipeReady || splashHide) return;
+    touchStartRef.current = e.touches[0].clientY;
+  }
+
+  function handleTouchMove(e) {
+    if (!swipeReady || splashHide || touchStartRef.current === null) return;
+    const deltaY = touchStartRef.current - e.touches[0].clientY;
+    if (deltaY > 0) {
+      setSwipeOffset(Math.min(deltaY, 250));
+    }
+  }
+
+  function handleTouchEnd(e) {
+    if (!swipeReady || splashHide || touchStartRef.current === null) return;
+    const deltaY = touchStartRef.current - (e.changedTouches ? e.changedTouches[0].clientY : touchStartRef.current);
+    touchStartRef.current = null;
+    if (deltaY > 40 || swipeOffset > 40) {
+      triggerSwipeUp();
+    } else {
+      setSwipeOffset(0);
+    }
+  }
+
+  function handleWheel(e) {
+    if (!swipeReady || splashHide) return;
+    if (e.deltaY > 15) {
+      triggerSwipeUp();
+    }
+  }
+
+  useEffect(() => {
+    let n = 0;
+    const ticker = setInterval(() => {
+      n = Math.min(n + Math.floor(Math.random() * 4) + 1, 100);
+      setSplashPct(n);
+      if (n >= 100) {
+        clearInterval(ticker);
+        setSwipeReady(true);
+      }
+    }, 28);
+    return () => clearInterval(ticker);
+  }, []);
 
   const cartCount = Object.keys(cart).length;
 
@@ -243,11 +375,11 @@ export default function App() {
   function sendWhatsApp(num, f, pm, cartItems) {
     const lines = cartItems.map(it => `• ${it.en} (${it.kn}) × ${it.qty}`).join("\n");
     const msg =
-      `🎉 *New Rental Order — Swasthik Enterprises*\n\n` +
+      `🎉 *New Rental Order — Swasthik Event Management*\n\n` +
       `*Order No:* ${num}\n*Name:* ${f.name}\n*Phone:* ${f.phone}${f.phone2 ? " / " + f.phone2 : ""}\n` +
       `*Event Type:* ${f.eventType || "N/A"}\n*Event Date:* ${f.eventDate || "N/A"}\n*Return Date:* ${f.returnDate || "N/A"}\n` +
       `*Venue:* ${f.address || "N/A"}\n*Payment:* ${pm === "cash" ? "Cash on Delivery" : "UPI / Online"}\n\n` +
-      `*Items Required:*\n${lines}${f.notes ? "\n*Notes:* " + f.notes : ""}\n\n_Swasthik Enterprises Booking App_`;
+      `*Items Required:*\n${lines}${f.notes ? "\n*Notes:* " + f.notes : ""}\n\n_Swasthik Event Management Booking App_`;
     window.open("https://wa.me/919980535818?text=" + encodeURIComponent(msg), "_blank");
   }
 
@@ -301,15 +433,15 @@ export default function App() {
   const s = {
     gold: { color: GOLD },
     btn: (active) => ({
-      padding: "12px 0", borderRadius: 8, border: "none", fontFamily: "inherit",
-      fontSize: 14, fontWeight: 600, cursor: "pointer", width: "100%",
-      background: active ? GOLD : "#f5e8cc", color: active ? "#fff" : "#8a6520",
+      padding: "14px 0", borderRadius: 8, border: "none", fontFamily: "inherit",
+      fontSize: 16, fontWeight: 600, cursor: "pointer", width: "100%",
+      background: active ? GOLD : "#f1f5f9", color: active ? "#fff" : TXT_MUTED,
       transition: "all .18s",
     }),
     input: {
-      width: "100%", padding: "11px 13px", border: "1.5px solid #e0cfa8",
-      borderRadius: 8, fontFamily: "inherit", fontSize: 14, outline: "none",
-      background: "#fff", color: "#2a1f0a",
+      width: "100%", padding: "12px 14px", border: `1.5px solid ${BORDER_NORM}`,
+      borderRadius: 8, fontFamily: "inherit", fontSize: 16, outline: "none",
+      background: "#fff", color: TXT_MAIN,
     },
   };
 
@@ -322,87 +454,282 @@ export default function App() {
   });
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#fdf8f0", minHeight: "100vh", color: "#2a1f0a" }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: "100vh" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Kannada:wght@400;600;700&display=swap');
         * { box-sizing: border-box; }
-        input:focus, textarea:focus, select:focus { border-color: ${GOLD} !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #e0cfa8; border-radius: 4px; }
-        .item-card { transition: all .18s; }
-        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(60,30,0,.12); }
-        .pay-opt:hover { border-color: ${GOLD} !important; }
-        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        body { background: #080c14; }
+
+        /* SPLASH */
+        #sw-splash {
+          position:fixed;inset:0;z-index:9999;
+          background:radial-gradient(ellipse at 50% 45%,#1e2f50 0%,#080c14 65%);
+          display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;
+        }
+        #sw-splash::before {
+          content:'';position:absolute;inset:0;
+          background-image:
+            radial-gradient(1px 1px at 15% 20%,rgba(201,151,58,.8) 0%,transparent 100%),
+            radial-gradient(2px 2px at 60% 70%,rgba(201,151,58,.5) 0%,transparent 100%),
+            radial-gradient(1px 1px at 90% 60%,rgba(13,148,136,.7) 0%,transparent 100%),
+            radial-gradient(1px 1px at 70% 35%,rgba(255,255,255,.5) 0%,transparent 100%),
+            radial-gradient(1px 1px at 30% 80%,rgba(255,255,255,.4) 0%,transparent 100%);
+          animation:twinkle 3s ease-in-out infinite alternate;
+        }
+        @keyframes twinkle{0%{opacity:.4}100%{opacity:1}}
+        #sw-splash.hide { animation:splashSwipeUp .65s cubic-bezier(.16,1,.3,1) forwards; pointer-events:none; }
+        @keyframes splashSwipeUp{
+          0%{transform:translateY(0);opacity:1;}
+          100%{transform:translateY(-100vh);opacity:0;}
+        }
+        .sp-glow{position:absolute;width:320px;height:320px;border-radius:50%;border:1px solid rgba(201,151,58,.15);animation:glowP 2.5s ease-in-out infinite;}
+        .sp-glow2{position:absolute;width:420px;height:420px;border-radius:50%;border:1px solid rgba(13,148,136,.1);animation:glowP 2.5s ease-in-out infinite reverse .8s;}
+        @keyframes glowP{0%,100%{transform:scale(1);opacity:.6}50%{transform:scale(1.06);opacity:1}}
+        .sp-center{display:flex;flex-direction:column;align-items:center;position:relative;z-index:2;}
+        .sp-ring{position:relative;width:160px;height:160px;margin-bottom:28px;animation:spPulse 2s ease-in-out infinite;}
+        @keyframes spPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+        .sp-ring::before,.sp-ring::after{content:'';position:absolute;inset:-14px;border-radius:50%;border:2.5px solid transparent;}
+        .sp-ring::before{border-top-color:#c9973a;border-right-color:#c9973a;animation:spinA 1.6s linear infinite;}
+        .sp-ring::after{border-bottom-color:#0d9488;border-left-color:#0d9488;animation:spinB 2.2s linear infinite reverse;}
+        @keyframes spinA{to{transform:rotate(360deg)}}
+        @keyframes spinB{to{transform:rotate(360deg)}}
+        .sp-ring-inner{position:absolute;inset:-28px;border-radius:50%;border:1px dashed rgba(201,151,58,.3);animation:spinA 4s linear infinite;}
+        .sp-logo{width:160px;height:160px;border-radius:50%;border:4px solid rgba(201,151,58,.5);object-fit:contain;background:#fff;padding:16px;box-shadow:0 0 40px rgba(201,151,58,.25),0 0 80px rgba(201,151,58,.1);}
+        .sp-brand{font-family:'Cinzel',serif;font-size:26px;font-weight:900;letter-spacing:5px;text-align:center;margin-bottom:6px;background:linear-gradient(135deg,#c9973a,#f5d07a,#c9973a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:brandGlow 2s ease-in-out infinite alternate;}
+        @keyframes brandGlow{0%{filter:drop-shadow(0 0 4px rgba(201,151,58,.3))}100%{filter:drop-shadow(0 0 16px rgba(201,151,58,.8))}}
+        .sp-kn{font-family:'Noto Sans Kannada',sans-serif;font-size:15px;color:rgba(255,255,255,.6);text-align:center;margin-bottom:10px;}
+        .sp-tag{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(201,151,58,.6);margin-bottom:30px;}
+        .sp-bar{width:220px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;}
+        .sp-progress{height:100%;background:linear-gradient(90deg,#0d9488,#c9973a,#f5d07a);border-radius:3px;box-shadow:0 0 10px rgba(201,151,58,.6);transition:width .05s linear;}
+        .sp-pct{margin-top:10px;font-size:11px;font-weight:600;color:rgba(201,151,58,.7);letter-spacing:1px;}
+
+        .sp-swipe-prompt{display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:14px 28px;border-radius:100px;background:rgba(201,151,58,.12);border:1px solid rgba(201,151,58,.4);box-shadow:0 0 25px rgba(201,151,58,.25);animation:promptPulse 2s infinite ease-in-out;transition:all .25s;margin-top:10px;}
+        .sp-swipe-prompt:hover{background:rgba(201,151,58,.28);transform:scale(1.05);}
+        @keyframes promptPulse{0%,100%{transform:translateY(0);box-shadow:0 0 20px rgba(201,151,58,.2);}50%{transform:translateY(-6px);box-shadow:0 0 35px rgba(201,151,58,.55);}}
+        .swipe-chevron{font-size:24px;animation:bounceUp 1.4s infinite ease-in-out;margin-bottom:4px;}
+        @keyframes bounceUp{0%,100%{transform:translateY(3px);}50%{transform:translateY(-6px);}}
+        .swipe-text{font-family:'Cinzel',serif;font-size:13px;font-weight:700;letter-spacing:3px;color:#f5d07a;text-align:center;}
+        .swipe-sub{font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;letter-spacing:1px;}
+
+        /* PRODUCTION OF ITEMS ON SWIPE UP */
+        #sw-app.show .app-header{animation:produceEntrance .65s cubic-bezier(.16,1,.3,1) forwards;}
+        #sw-app.show .step-nav-bar{animation:produceEntrance .65s cubic-bezier(.16,1,.3,1) .1s both;}
+        #sw-app.show .cat-badge{animation:produceItem .65s cubic-bezier(.16,1,.3,1) both;}
+        #sw-app.show .item-card{animation:produceItem .65s cubic-bezier(.34,1.56,.64,1) both;}
+        #sw-app.show .item-card:nth-child(1){animation-delay:.15s;}
+        #sw-app.show .item-card:nth-child(2){animation-delay:.2s;}
+        #sw-app.show .item-card:nth-child(3){animation-delay:.25s;}
+        #sw-app.show .item-card:nth-child(4){animation-delay:.3s;}
+        #sw-app.show .item-card:nth-child(n+5){animation-delay:.35s;}
+
+        @keyframes produceEntrance{0%{opacity:0;transform:translateY(-25px);}100%{opacity:1;transform:translateY(0);}}
+        @keyframes produceItem{0%{opacity:0;transform:translateY(45px) scale(0.9);}100%{opacity:1;transform:translateY(0) scale(1);}}
+
+        /* MAIN APP FADE IN */
+        #sw-app{opacity:0;transform:scale(.98);transition:opacity .5s ease,transform .5s ease;}
+        #sw-app.show{opacity:1;transform:scale(1);}
+
+        /* HEADER */
+        .app-header{
+          background:linear-gradient(160deg,#0a1628 0%,#111d35 40%,#0a1628 100%);
+          position:relative;overflow:hidden;
+        }
+        .hdr-glow{position:absolute;top:-60px;left:-40px;width:260px;height:260px;background:radial-gradient(circle,rgba(201,151,58,.18) 0%,transparent 70%);pointer-events:none;}
+        .hdr-glow2{position:absolute;bottom:-40px;right:-20px;width:200px;height:200px;background:radial-gradient(circle,rgba(13,148,136,.15) 0%,transparent 70%);pointer-events:none;}
+        .brand-cinzel{font-family:'Cinzel',serif;font-size:28px;font-weight:900;text-align:center;line-height:1.1;margin-bottom:8px;}
+        .brand-cinzel span{background:linear-gradient(135deg,#c9973a,#f5d07a,#c9973a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+        .loc-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(201,151,58,.3);padding:4px 16px;border-radius:100px;font-size:10px;color:#c9973a;letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:10px;}
+        .kn-badge{background:linear-gradient(135deg,rgba(201,151,58,.2),rgba(201,151,58,.08));border:1px solid rgba(201,151,58,.4);padding:8px 24px;border-radius:100px;font-family:'Noto Sans Kannada',sans-serif;font-size:16px;font-weight:700;color:#fde68a;margin-bottom:12px;box-shadow:0 4px 16px rgba(0,0,0,.2);}
+        .logo-badge-hdr{width:52px;height:52px;border-radius:14px;background:#fff;padding:4px;border:2px solid #c9973a;box-shadow:0 0 0 4px rgba(201,151,58,.15),0 8px 24px rgba(0,0,0,.4);}
+        .logo-badge-hdr img{width:100%;height:100%;object-fit:contain;}
+        .phone-chip{color:#f5d07a;font-size:13px;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.06);padding:6px 14px;border-radius:100px;border:1px solid rgba(255,255,255,.1);transition:all .2s;}
+        .phone-chip:hover{background:rgba(201,151,58,.2);border-color:#c9973a;}
+
+        /* STEP NAV */
+        .step-nav-bar{display:flex;background:#0d1525;border-top:1px solid rgba(201,151,58,.15);position:sticky;top:0;z-index:50;}
+        .step-btn{flex:1;padding:10px 4px;background:none;border:none;border-bottom:2.5px solid transparent;color:rgba(255,255,255,.3);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;cursor:pointer;text-align:center;transition:all .2s;}
+        .step-btn.active{border-bottom-color:#c9973a;color:#c9973a;}
+        .step-num{font-size:16px;font-weight:700;margin-bottom:2px;}
+
+        /* CONTENT */
+        .content-area{background:#fdfaf4;min-height:100vh;padding:22px 14px 80px;position:relative;}
+        .watermark-bg{position:fixed;top:50%;left:50%;transform:translate(-50%,-40%);width:75vw;max-width:320px;opacity:.06;pointer-events:none;z-index:0;}
+
+        /* CATEGORY BADGE */
+        .cat-badge{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,#0f766e,#0d9488);color:#fff;font-size:12px;font-weight:600;padding:7px 18px;border-radius:100px;margin-bottom:14px;box-shadow:0 4px 14px rgba(13,148,136,.3);letter-spacing:.3px;cursor:default;}
+
+        /* ITEM CARDS */
+        .items-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px;}
+        .item-card{background:#fff;border-radius:16px;padding:14px 12px;border:1.5px solid #e2e8f0;box-shadow:0 2px 8px rgba(15,23,42,.05);transition:all .2s;cursor:pointer;position:relative;overflow:hidden;}
+        .item-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#0d9488,#c9973a);opacity:0;transition:opacity .2s;}
+        .item-card.selected{border-color:#c9973a;background:linear-gradient(135deg,#fffbeb,#fff7ed);box-shadow:0 4px 20px rgba(201,151,58,.15);}
+        .item-card.selected::before{opacity:1;}
+        .item-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,23,42,.1);}
+        .ic-check{position:absolute;top:8px;right:8px;width:18px;height:18px;background:#c9973a;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700;}
+        .ic-name{font-size:13px;font-weight:600;color:#0f172a;margin-bottom:3px;}
+        .ic-kn{font-size:11px;font-weight:700;color:#b45309;background:#fef3c7;padding:2px 8px;border-radius:6px;display:inline-block;margin-bottom:8px;border:1px solid #fde68a;}
+        .ic-qty-row{display:flex;align-items:center;gap:6px;}
+        .ic-qty-label{font-size:11px;color:#64748b;}
+        .ic-qty-input{flex:1;padding:5px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-weight:600;text-align:center;color:#0f172a;background:#f8fafc;outline:none;font-family:'DM Sans',sans-serif;}
+        .ic-qty-input:focus{border-color:#c9973a;}
+
+        /* SECTION TITLE */
+        .sec-title{font-family:'Cinzel',serif;font-size:20px;font-weight:700;color:#0f172a;margin-bottom:4px;}
+        .sec-sub{font-size:13px;color:#64748b;margin-bottom:20px;}
+
+        /* FLOAT CART */
+        .floating-cart{position:fixed;bottom:22px;right:16px;z-index:99;background:linear-gradient(135deg,#c9973a,#f5d07a);color:#0f172a;font-weight:700;font-size:13px;padding:13px 22px;border-radius:100px;border:none;cursor:pointer;box-shadow:0 8px 30px rgba(201,151,58,.45);display:flex;align-items:center;gap:8px;font-family:'DM Sans',sans-serif;animation:floatBounce 2s ease-in-out infinite;}
+        @keyframes floatBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+        /* CONTINUE BTN */
+        .continue-btn{width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 20px rgba(15,23,42,.3);transition:all .2s;position:relative;overflow:hidden;}
+        .continue-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(15,23,42,.4);}
+
+        /* FORM */
+        input:focus,textarea:focus,select:focus{border-color:#c9973a !important;box-shadow:0 0 0 3px rgba(201,151,58,.1) !important;}
+        ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
+        input[type=number]::-webkit-inner-spin-button{opacity:1;}
+
+        /* PAY OPTIONS */
+        .pay-opt{border-color:#e2e8f0 !important;background:#fff;border-radius:16px;transition:all .22s;}
+        .pay-opt.selected{background:linear-gradient(135deg,#fffbeb,#fff7ed) !important;border-color:#c9973a !important;}
+        .pay-opt:hover{border-color:#c9973a !important;transform:translateY(-2px);}
+        .pay-sub{color:#64748b !important;}
+
+        /* DESKTOP */
+        @media (min-width:768px){
+          .app-header{padding:40px 24px 28px !important;}
+          .brand-cinzel{font-size:42px !important;}
+          .items-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr)) !important;gap:18px !important;}
+          .content-area{max-width:1150px;margin:0 auto;padding:36px 32px 80px !important;}
+          .floating-cart{padding:16px 30px !important;font-size:16px !important;bottom:28px !important;right:36px !important;}
+          .pay-opt{padding:28px 18px !important;}
+        }
       `}</style>
 
-      {/* HEADER */}
-      <div style={{ background: DEEP, color: "#fff", textAlign: "center", padding: "24px 16px 16px", position: "relative" }}>
-        <button onClick={() => { setShowPin(true); setPin(""); setPinErr(""); }}
-          style={{ position: "absolute", top: 14, right: 14, background: "rgba(201,151,58,.15)", border: "1px solid rgba(201,151,58,.4)", color: GOLD, fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 100, cursor: "pointer", letterSpacing: 1, textTransform: "uppercase", fontFamily: "inherit" }}>
-          ⚙ Admin
-        </button>
-        <div style={{ display: "inline-block", border: `1.5px solid ${GOLD}`, padding: "3px 16px", borderRadius: 100, fontSize: 11, color: GOLD, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10, fontWeight: 500 }}>
-          Swasthik Enterprises · Kervaje
+
+      {/* SPLASH / LOGO SCREEN */}
+      {!splashDone && (
+        <div 
+          id="sw-splash" 
+          className={splashHide ? "hide" : ""}
+          style={{ transform: !splashHide && swipeOffset > 0 ? `translateY(-${swipeOffset}px)` : undefined, transition: swipeOffset === 0 ? "transform 0.2s ease" : "none" }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+        >
+          <div className="sp-glow" />
+          <div className="sp-glow2" />
+          <div className="sp-center">
+            <div className="sp-ring">
+              <div className="sp-ring-inner" />
+              <img src="/logo.png" alt="Swasthik" className="sp-logo" />
+            </div>
+            <div className="sp-brand">SWASTHIK</div>
+            <div className="sp-kn">ಸ್ವಸ್ತಿಕ್ ಇವೆಂಟ್ ಮ್ಯಾನೇಜ್ಮೆಂಟ್</div>
+            <div className="sp-tag">Event &amp; Rental Services · Kervashe</div>
+            {swipeReady ? (
+              <div className="sp-swipe-prompt" onClick={triggerSwipeUp}>
+                <div className="swipe-chevron">👆</div>
+                <div className="swipe-text">SWIPE UP TO VIEW CATALOG</div>
+                <div className="swipe-sub">Swipe or Click here to explore items</div>
+              </div>
+            ) : (
+              <>
+                <div className="sp-bar"><div className="sp-progress" style={{ width: `${splashPct}%` }} /></div>
+                <div className="sp-pct">{splashPct}%</div>
+              </>
+            )}
+          </div>
         </div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, margin: "0 0 4px" }}>
-          ಸ್ವಸ್ತಿಕ್ <span style={{ color: GOLD }}>ಎಂಟರ್‌ಪ್ರೈಸಸ್</span>
-        </h1>
-        <p style={{ fontSize: 12, color: "rgba(255,255,255,.5)", marginBottom: 10 }}>Serving all your event needs</p>
-        <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
-          <a href="tel:9980535818" style={{ color: GOLD, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>📞 9980535818</a>
-          <a href="tel:9980437899" style={{ color: GOLD, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>📞 9980437899</a>
+      )}
+
+      {/* MAIN APP */}
+      <div id="sw-app" className={splashDone ? "show" : splashHide ? "show" : ""}>
+
+      {/* HEADER */}
+      <div className="app-header" style={{ color: "#fff", textAlign: "center", padding: "22px 18px 18px" }}>
+        <div className="hdr-glow" />
+        <div className="hdr-glow2" />
+        <div style={{ position: "relative", zIndex: 2 }}>
+          <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div className="logo-badge-hdr"><img src="/logo.png" alt="Swasthik" /></div>
+            <button onClick={() => { setShowPin(true); setPin(""); setPinErr(""); }}
+              style={{ background: "rgba(201,151,58,.12)", border: "1px solid rgba(201,151,58,.35)", color: "#c9973a", fontSize: 10, fontWeight: 600, letterSpacing: 1.5, padding: "7px 14px", borderRadius: 100, cursor: "pointer", textTransform: "uppercase", fontFamily: "inherit" }}>
+              ⚙ Admin
+            </button>
+          </div>
+          <div className="loc-pill">📍 Swasthik Event Management · Kervashe</div>
+          <div className="brand-cinzel">SWASTHIK<br/><span>EVENT MANAGEMENT</span></div>
+          <div className="kn-badge">ಸ್ವಸ್ತಿಕ್ ಇವೆಂಟ್ ಮ್ಯಾನೇಜ್ಮೆಂಟ್</div>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,.45)", marginBottom: 12 }}>Serving all your event &amp; rental needs in Kervashe</p>
+          <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
+            <a href="tel:9980535818" className="phone-chip">📞 9980535818</a>
+            <a href="tel:9980437899" className="phone-chip">📞 9980437899</a>
+          </div>
         </div>
       </div>
 
       {/* STEP NAV */}
-      <div style={{ display: "flex", background: DEEP, borderTop: "1px solid rgba(201,151,58,.2)" }}>
+      <div className="step-nav-bar">
         {[["1","Items"],["2","Details"],["3","Payment"],["4","Confirm"]].map(([n, label]) => (
-          <button key={n} onClick={() => parseInt(n) < step && goStep(parseInt(n))}
-            style={{ flex: 1, padding: "10px 4px", background: "none", border: "none", borderBottom: `2.5px solid ${step >= parseInt(n) ? GOLD : "transparent"}`, color: step >= parseInt(n) ? GOLD : "rgba(255,255,255,.35)", fontFamily: "inherit", fontSize: 11, fontWeight: 500, cursor: parseInt(n) < step ? "pointer" : "default", textAlign: "center" }}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 2 }}>{n}</div>{label}
+          <button key={n} className={`step-btn${step >= parseInt(n) ? " active" : ""}`}
+            onClick={() => parseInt(n) < step && goStep(parseInt(n))}>
+            <div className="step-num">{n}</div>{label}
           </button>
         ))}
       </div>
 
-      <div style={{ maxWidth: 660, margin: "0 auto", padding: "20px 14px 60px" }}>
+      {/* CONTENT */}
+      <div className="content-area">
+        <img src="/logo.png" className="watermark-bg" alt="" />
+        <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* ── STEP 1: ITEMS ── */}
         {step === 1 && (
           <div>
-            <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, marginBottom: 4 }}>Select Items</h2>
-            <p style={{ fontSize: 13, color: "#6b5533", marginBottom: 20 }}>Type the quantity you need for each item.</p>
+            <div className="sec-title">Select Items</div>
+            <div className="sec-sub">Type the quantity you need for each item.</div>
 
-            {Object.entries(ITEMS).map(([cat, items]) => (
-              <div key={cat}>
-                <div style={{ display: "inline-block", background: "#f5e8cc", color: "#8a6520", fontSize: 11, fontWeight: 600, padding: "3px 12px", borderRadius: 100, marginBottom: 12, letterSpacing: .5 }}>{cat}</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(145px,1fr))", gap: 10, marginBottom: 20 }}>
-                  {items.map(item => {
-                    const qty = cart[item.id] || 0;
-                    return (
-                      <div key={item.id} className="item-card"
-                        style={{ background: qty > 0 ? "#f5e8cc" : "#fff", border: `1.5px solid ${qty > 0 ? GOLD : "#e0cfa8"}`, borderRadius: 12, padding: "11px 10px", position: "relative" }}>
-                        {qty > 0 && <div style={{ position: "absolute", top: 7, right: 7, width: 17, height: 17, background: GOLD, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</div>}
-                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>{item.en}</div>
-                        <div style={{ fontSize: 11, color: "#6b5533", marginBottom: 8 }}>{item.kn}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                          <span style={{ fontSize: 11, color: "#6b5533", whiteSpace: "nowrap" }}>Qty:</span>
-                          <input type="number" min="0" placeholder="0" value={qty || ""}
-                            onChange={e => handleQty(item.id, e.target.value)}
-                            style={{ ...s.input, padding: "5px 6px", textAlign: "center", fontSize: 14, fontWeight: 600, width: "100%" }} />
+            {Object.entries(ITEMS).map(([cat, items], catIdx) => {
+              const catStyles = [
+                {},
+                { background: "linear-gradient(135deg,#9333ea,#7c3aed)", boxShadow: "0 4px 14px rgba(147,51,234,.3)" },
+                { background: "linear-gradient(135deg,#be123c,#e11d48)", boxShadow: "0 4px 14px rgba(190,18,60,.3)" },
+                { background: "linear-gradient(135deg,#0369a1,#0284c7)", boxShadow: "0 4px 14px rgba(3,105,161,.3)" },
+              ];
+              return (
+                <div key={cat}>
+                  <div className="cat-badge" style={catStyles[catIdx] || {}}>{cat}</div>
+                  <div className="items-grid">
+                    {items.map(item => {
+                      const qty = cart[item.id] || 0;
+                      return (
+                        <div key={item.id} className={`item-card${qty > 0 ? " selected" : ""}`}
+                          onClick={() => { if (qty === 0) handleQty(item.id, 1); }}>
+                          {qty > 0 && <div className="ic-check">✓</div>}
+                          <div className="ic-name">{item.en}</div>
+                          <div className="ic-kn">{item.kn}</div>
+                          <div className="ic-qty-row">
+                            <span className="ic-qty-label">Qty:</span>
+                            <input type="number" min="0" placeholder="0" value={qty || ""}
+                              className="ic-qty-input"
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => handleQty(item.id, e.target.value)} />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {cartCount > 0 && (
-              <div style={{ position: "fixed", bottom: 20, right: 16, background: GOLD, color: "#fff", borderRadius: 50, padding: "11px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(201,151,58,.4)", zIndex: 99, border: "none", fontFamily: "inherit" }} onClick={() => goStep(2)}>
-                🛒 {cartCount} items →
-              </div>
+              <button className="floating-cart" onClick={() => goStep(2)}>🛒 {cartCount} items →</button>
             )}
-
-            <button style={s.btn(true)} onClick={() => goStep(2)}>Continue to Details →</button>
+            <button className="continue-btn" onClick={() => goStep(2)}>Continue to Details →</button>
           </div>
         )}
 
@@ -424,11 +751,11 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b5533", marginBottom: 5 }}>Phone *</label>
-                <input type="tel" placeholder="Mobile number" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} style={s.input} />
+                <input type="tel" inputMode="numeric" maxLength={10} placeholder="Mobile number (10 digits)" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))} style={s.input} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: "#6b5533", marginBottom: 5 }}>Alternate Phone</label>
-                <input type="tel" placeholder="Optional" value={form.phone2} onChange={e => setForm(p => ({ ...p, phone2: e.target.value }))} style={s.input} />
+                <input type="tel" inputMode="numeric" maxLength={10} placeholder="Optional (10 digits)" value={form.phone2} onChange={e => setForm(p => ({ ...p, phone2: e.target.value.replace(/\D/g, "").slice(0, 10) }))} style={s.input} />
               </div>
             </div>
 
@@ -484,11 +811,11 @@ export default function App() {
                 { k: "cash", icon: "💵", label: "Cash", sub: "Pay on delivery" },
                 { k: "upi", icon: "📲", label: "UPI / Scanner", sub: "Pay online now" },
               ].map(opt => (
-                <div key={opt.k} className="pay-opt" onClick={() => setPayMode(opt.k)}
-                  style={{ background: payMode === opt.k ? "#f5e8cc" : "#fff", border: `2px solid ${payMode === opt.k ? GOLD : "#e0cfa8"}`, borderRadius: 12, padding: "18px 12px", textAlign: "center", cursor: "pointer", transition: "all .18s" }}>
-                  <div style={{ fontSize: 30, marginBottom: 8 }}>{opt.icon}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{opt.label}</div>
-                  <div style={{ fontSize: 11, color: "#6b5533", marginTop: 3 }}>{opt.sub}</div>
+                <div key={opt.k} className={`pay-opt ${payMode === opt.k ? "selected" : ""}`} onClick={() => setPayMode(opt.k)}
+                  style={{ background: payMode === opt.k ? BG_CARD_SEL : "#fff", border: `2px solid ${payMode === opt.k ? GOLD : BORDER_NORM}`, borderRadius: 12, padding: "18px 12px", textAlign: "center", cursor: "pointer", transition: "all .18s" }}>
+                  <div className="pay-icon" style={{ fontSize: 30, marginBottom: 8 }}>{opt.icon}</div>
+                  <div className="pay-label" style={{ fontSize: 14, fontWeight: 600 }}>{opt.label}</div>
+                  <div className="pay-sub" style={{ fontSize: 11, color: "#6b5533", marginTop: 3 }}>{opt.sub}</div>
                 </div>
               ))}
             </div>
@@ -549,9 +876,9 @@ export default function App() {
                 ))}
                 <div style={{ borderTop: ".5px solid #e0cfa8", marginTop: 10, paddingTop: 10, fontSize: 11, fontWeight: 600, color: "#6b5533", textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>Items Booked</div>
                 {orderItems.map(it => (
-                  <div key={it.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 0", borderBottom: ".5px dashed #e0cfa8" }}>
+                  <div key={it.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, padding: "7px 0", borderBottom: ".5px dashed #e0cfa8" }}>
                     <span>{it.en} <span style={{ color: "#6b5533", fontSize: 12 }}>×{it.qty}</span></span>
-                    <span style={{ color: "#6b5533", fontSize: 12 }}>{it.kn}</span>
+                    <span style={{ background: "#fef3c7", color: "#b45309", fontWeight: 700, fontSize: 13, padding: "2px 10px", borderRadius: 6, border: "1px solid #fde68a" }}>{it.kn}</span>
                   </div>
                 ))}
               </div>
@@ -596,12 +923,12 @@ export default function App() {
           <div style={{ background: DEEP, color: "#fff", padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 10 }}>
             <div>
               <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 17, margin: 0 }}>📋 All Orders</h2>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>Swasthik Enterprises</span>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>Swasthik Event Management</span>
             </div>
             <button onClick={() => setShowAdmin(false)} style={{ background: "rgba(255,255,255,.1)", border: "none", color: "#fff", fontSize: 16, width: 32, height: 32, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>✕</button>
           </div>
 
-          <div style={{ maxWidth: 660, margin: "0 auto", padding: "18px 14px 40px" }}>
+          <div className="admin-container" style={{ maxWidth: 660, margin: "0 auto", padding: "18px 14px 40px" }}>
             {/* Error Message */}
             {firebaseError && (
               <div style={{ background: "#fdeaea", border: "1px solid #fc8181", borderRadius: 8, padding: "12px 14px", marginBottom: 18, color: "#c53030", fontSize: 12 }}>
@@ -708,9 +1035,12 @@ export default function App() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }
+
 
 function ItemsToggle({ items }) {
   const [open, setOpen] = useState(false);
@@ -732,31 +1062,30 @@ function ItemsToggle({ items }) {
   );
 }
 
+// ── UPI & PAYMENT QR CONFIGURATION ─────────────────────────────────────────────
+// If you have your own QR code image (e.g. from GPay/PhonePe Business app),
+// place the image file in the "public" folder (e.g., "qr.png") and set:
+// const CUSTOM_QR_IMAGE_URL = "/qr.png";
+const CUSTOM_QR_IMAGE_URL = "";
+
 function QRCode({ value, size }) {
-  const ref = useRef();
-  useEffect(() => {
-    if (!ref.current) return;
-    const canvas = ref.current;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "#1a1207";
-    ctx.fillRect(0, 0, size, 4); ctx.fillRect(0, size-4, size, 4);
-    ctx.fillRect(0, 0, 4, size); ctx.fillRect(size-4, 0, 4, size);
-    [[8,8],[size-28,8],[8,size-28]].forEach(([x,y]) => {
-      ctx.fillRect(x, y, 20, 20);
-      ctx.fillStyle = "#fff"; ctx.fillRect(x+3, y+3, 14, 14);
-      ctx.fillStyle = "#1a1207"; ctx.fillRect(x+6, y+6, 8, 8);
-    });
-    ctx.fillStyle = "#1a1207";
-    for(let r=0;r<15;r++) for(let c=0;c<15;c++) {
-      if((r+c+r*c)%3===0 && !(r<4&&c<4) && !(r<4&&c>10) && !(r>10&&c<4))
-        ctx.fillRect(8+c*12, 8+r*12, 8, 8);
-    }
-    ctx.fillStyle = "#1a1207";
-    ctx.font = "bold 9px DM Sans, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("madivalswasthik@okicici", size/2, size-8);
-  }, [value, size]);
-  return <canvas ref={ref} width={size} height={size} style={{ borderRadius: 6, border: "1px solid #e0cfa8" }} />;
+  const qrUrl = CUSTOM_QR_IMAGE_URL || `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&margin=10`;
+  
+  return (
+    <div style={{ display: "inline-block", position: "relative", width: size, height: size, background: "#fff", borderRadius: 8, border: "1.5px solid #e0cfa8", padding: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", overflow: "hidden" }}>
+      <img 
+        src={qrUrl} 
+        alt="UPI Payment QR Code" 
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} 
+        onError={(e) => {
+          e.target.style.display = "none";
+          if (e.target.nextSibling) e.target.nextSibling.style.display = "flex";
+        }}
+      />
+      <div style={{ display: "none", position: "absolute", inset: 0, flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fdf8f0", borderRadius: 6, padding: 10, textAlign: "center", fontSize: 11, color: "#6b5533" }}>
+        <span>⚠️ Could not load QR image.</span>
+        <strong style={{ color: "#2a1f0a", marginTop: 4, fontSize: 12 }}>madivalswasthik@okicici</strong>
+      </div>
+    </div>
+  );
 }

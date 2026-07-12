@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Swasthik Event Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Kannada:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#c9973a;--gold2:#f5d07a;--deep:#080c14;--deep2:#0f1829;
+  --teal:#0d9488;--rose:#be123c;--cream:#fdfaf4;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--deep);color:#fff;min-height:100vh;overflow-x:hidden}
+
+/* ── SPLASH SCREEN ── */
+#splash{
+  position:fixed;inset:0;z-index:9999;
+  background:radial-gradient(ellipse at 50% 45%,#1e2f50 0%,#080c14 65%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+
+/* Animated star particles background */
+#splash::before{
+  content:'';
+  position:absolute;inset:0;
+  background-image:
+    radial-gradient(1px 1px at 15% 20%,rgba(201,151,58,.8) 0%,transparent 100%),
+    radial-gradient(1px 1px at 80% 15%,rgba(255,255,255,.6) 0%,transparent 100%),
+    radial-gradient(2px 2px at 60% 70%,rgba(201,151,58,.5) 0%,transparent 100%),
+    radial-gradient(1px 1px at 30% 80%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 90% 60%,rgba(13,148,136,.7) 0%,transparent 100%),
+    radial-gradient(2px 2px at 10% 55%,rgba(201,151,58,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 70% 35%,rgba(255,255,255,.5) 0%,transparent 100%),
+    radial-gradient(1px 1px at 45% 10%,rgba(201,151,58,.6) 0%,transparent 100%);
+  animation:twinkle 3s ease-in-out infinite alternate;
+}
+@keyframes twinkle{0%{opacity:.4}100%{opacity:1}}
+
+/* Exit: entire splash SWIPES UP */
+#splash.hide{
+  animation:splashSwipeUp .65s cubic-bezier(.16,1,.3,1) forwards;
+  pointer-events:none;
+}
+@keyframes splashSwipeUp{
+  0%  {transform:translateY(0);opacity:1;}
+  100%{transform:translateY(-100vh);opacity:0;}
+}
+
+.sp-swipe-prompt{
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;padding:14px 28px;border-radius:100px;
+  background:rgba(201,151,58,.12);border:1px solid rgba(201,151,58,.4);
+  box-shadow:0 0 25px rgba(201,151,58,.25);
+  animation:promptPulse 2s infinite ease-in-out;
+  transition:all .25s;margin-top:10px;
+}
+.sp-swipe-prompt:hover{background:rgba(201,151,58,.28);transform:scale(1.05);}
+@keyframes promptPulse{0%,100%{transform:translateY(0);box-shadow:0 0 20px rgba(201,151,58,.2);}50%{transform:translateY(-6px);box-shadow:0 0 35px rgba(201,151,58,.55);}}
+.swipe-chevron{font-size:24px;animation:bounceUp 1.4s infinite ease-in-out;margin-bottom:4px;}
+@keyframes bounceUp{0%,100%{transform:translateY(3px);}50%{transform:translateY(-6px);}}
+.swipe-text{font-family:'Cinzel',serif;font-size:13px;font-weight:700;letter-spacing:3px;color:#f5d07a;text-align:center;}
+.swipe-sub{font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;letter-spacing:1px;}
+
+/* PRODUCTION OF ITEMS ON SWIPE UP */
+#app.show .header{animation:produceEntrance .65s cubic-bezier(.16,1,.3,1) forwards;}
+#app.show .step-nav{animation:produceEntrance .65s cubic-bezier(.16,1,.3,1) .1s both;}
+#app.show .cat-badge{animation:produceItem .65s cubic-bezier(.16,1,.3,1) both;}
+#app.show .item-card{animation:produceItem .65s cubic-bezier(.34,1.56,.64,1) both;}
+#app.show .item-card:nth-child(1){animation-delay:.15s;}
+#app.show .item-card:nth-child(2){animation-delay:.2s;}
+#app.show .item-card:nth-child(3){animation-delay:.25s;}
+#app.show .item-card:nth-child(4){animation-delay:.3s;}
+#app.show .item-card:nth-child(n+5){animation-delay:.35s;}
+
+@keyframes produceEntrance{0%{opacity:0;transform:translateY(-25px);}100%{opacity:1;transform:translateY(0);}}
+@keyframes produceItem{0%{opacity:0;transform:translateY(45px) scale(0.9);}100%{opacity:1;transform:translateY(0) scale(1);}}
+
+
+/* Big outer glow ring */
+.splash-glow-ring{
+  position:absolute;
+  width:320px;height:320px;border-radius:50%;
+  border:1px solid rgba(201,151,58,.15);
+  animation:glowPulse 2.5s ease-in-out infinite;
+}
+.splash-glow-ring2{
+  position:absolute;
+  width:420px;height:420px;border-radius:50%;
+  border:1px solid rgba(13,148,136,.1);
+  animation:glowPulse 2.5s ease-in-out infinite reverse .8s;
+}
+@keyframes glowPulse{
+  0%,100%{transform:scale(1);opacity:.6}
+  50%{transform:scale(1.06);opacity:1}
+}
+
+.splash-center{display:flex;flex-direction:column;align-items:center;position:relative;z-index:2}
+
+.splash-ring{
+  position:relative;width:160px;height:160px;margin-bottom:28px;
+  animation:splashPulse 2s ease-in-out infinite;
+}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+
+.splash-ring::before,.splash-ring::after{
+  content:'';position:absolute;inset:-14px;border-radius:50%;
+  border:2.5px solid transparent;
+}
+.splash-ring::before{
+  border-top-color:var(--gold);border-right-color:var(--gold);
+  animation:spinA 1.6s linear infinite;
+}
+.splash-ring::after{
+  border-bottom-color:var(--teal);border-left-color:var(--teal);
+  animation:spinB 2.2s linear infinite reverse;
+}
+@keyframes spinA{to{transform:rotate(360deg)}}
+@keyframes spinB{to{transform:rotate(360deg)}}
+
+/* Extra third ring */
+.splash-ring-inner{
+  position:absolute;inset:-28px;border-radius:50%;
+  border:1px dashed rgba(201,151,58,.3);
+  animation:spinA 4s linear infinite;
+}
+
+.splash-logo{
+  width:160px;height:160px;border-radius:50%;
+  border:4px solid rgba(201,151,58,.5);
+  object-fit:contain;background:#fff;padding:16px;
+  box-shadow:0 0 40px rgba(201,151,58,.25),0 0 80px rgba(201,151,58,.1),inset 0 0 20px rgba(201,151,58,.05);
+}
+
+.splash-brand{
+  font-family:'Cinzel',serif;font-size:26px;font-weight:900;
+  letter-spacing:5px;text-align:center;margin-bottom:6px;
+  background:linear-gradient(135deg,#c9973a,#f5d07a,#c9973a);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:brandGlow 2s ease-in-out infinite alternate;
+}
+@keyframes brandGlow{
+  0%{filter:drop-shadow(0 0 4px rgba(201,151,58,.3))}
+  100%{filter:drop-shadow(0 0 16px rgba(201,151,58,.8))}
+}
+.splash-kn{
+  font-family:'Noto Sans Kannada',sans-serif;font-size:15px;
+  color:rgba(255,255,255,.6);text-align:center;margin-bottom:10px;
+}
+.splash-tagline{
+  font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(201,151,58,.6);margin-bottom:30px;
+}
+.splash-bar{width:220px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;}
+.splash-progress{
+  height:100%;
+  background:linear-gradient(90deg,var(--teal),var(--gold),var(--gold2));
+  border-radius:3px;
+  animation:loadBar 2.6s cubic-bezier(.4,0,.2,1) forwards;
+  box-shadow:0 0 10px rgba(201,151,58,.6);
+}
+@keyframes loadBar{from{width:0}to{width:100%}}
+.splash-pct{
+  margin-top:10px;font-size:11px;font-weight:600;
+  color:rgba(201,151,58,.7);letter-spacing:1px;
+  animation:countUp 2.6s steps(100,end) forwards;
+}
+
+/* ── MAIN APP ── */
+#app{opacity:0;transform:scale(.98);transition:opacity .5s ease,transform .5s ease}
+#app.show{opacity:1;transform:scale(1)}
+
+/* ── HEADER ── */
+.header{
+  position:relative;
+  background:linear-gradient(160deg,#0a1628 0%,#111d35 40%,#0a1628 100%);
+  padding:0;overflow:hidden;
+}
+.header-bg-glow{
+  position:absolute;top:-60px;left:-40px;
+  width:260px;height:260px;
+  background:radial-gradient(circle,rgba(201,151,58,.18) 0%,transparent 70%);
+  pointer-events:none;
+}
+.header-bg-glow2{
+  position:absolute;bottom:-40px;right:-20px;
+  width:200px;height:200px;
+  background:radial-gradient(circle,rgba(13,148,136,.15) 0%,transparent 70%);
+  pointer-events:none;
+}
+.header-inner{
+  position:relative;z-index:2;
+  padding:22px 18px 18px;
+  display:flex;flex-direction:column;align-items:center;
+}
+.header-top-row{
+  width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;
+}
+.logo-badge{
+  width:52px;height:52px;border-radius:14px;
+  background:#fff;padding:4px;
+  border:2px solid var(--gold);
+  box-shadow:0 0 0 4px rgba(201,151,58,.15),0 8px 24px rgba(0,0,0,.4);
+  animation:logoPop .5s cubic-bezier(.34,1.56,.64,1) both .3s;
+}
+@keyframes logoPop{from{transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+.logo-badge img{width:100%;height:100%;object-fit:contain}
+
+.admin-btn{
+  background:rgba(201,151,58,.12);border:1px solid rgba(201,151,58,.35);
+  color:var(--gold);font-size:10px;font-weight:600;letter-spacing:1.5px;
+  padding:7px 14px;border-radius:100px;cursor:pointer;text-transform:uppercase;
+  font-family:'DM Sans',sans-serif;transition:all .2s;
+}
+.admin-btn:hover{background:rgba(201,151,58,.25)}
+
+.location-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid rgba(201,151,58,.3);padding:4px 16px;
+  border-radius:100px;font-size:10px;color:var(--gold);
+  letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:10px;
+  animation:fadeUp .5s ease both .4s;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.brand-name{
+  font-family:'Cinzel',serif;font-size:28px;font-weight:900;
+  text-align:center;line-height:1.1;margin-bottom:8px;
+  animation:fadeUp .5s ease both .5s;
+}
+.brand-name span{
+  background:linear-gradient(135deg,var(--gold),var(--gold2),var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+
+.kannada-badge{
+  background:linear-gradient(135deg,rgba(201,151,58,.2),rgba(201,151,58,.08));
+  border:1px solid rgba(201,151,58,.4);padding:8px 24px;
+  border-radius:100px;font-family:'Noto Sans Kannada',sans-serif;
+  font-size:16px;font-weight:700;color:#fde68a;margin-bottom:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.2);animation:fadeUp .5s ease both .6s;
+}
+.subtext{font-size:12px;color:rgba(255,255,255,.45);margin-bottom:12px;animation:fadeUp .5s ease both .65s}
+.phone-row{display:flex;gap:20px;animation:fadeUp .5s ease both .7s}
+.phone-link{
+  color:var(--gold2);font-size:13px;font-weight:600;text-decoration:none;
+  display:flex;align-items:center;gap:5px;
+  background:rgba(255,255,255,.06);padding:6px 14px;border-radius:100px;
+  border:1px solid rgba(255,255,255,.1);transition:all .2s;
+}
+.phone-link:hover{background:rgba(201,151,58,.2);border-color:var(--gold)}
+
+/* ── STEP NAV ── */
+.step-nav{
+  display:flex;background:#0d1525;
+  border-top:1px solid rgba(201,151,58,.15);
+  position:sticky;top:0;z-index:50;
+}
+.step-btn{
+  flex:1;padding:10px 4px;background:none;border:none;
+  border-bottom:2.5px solid transparent;color:rgba(255,255,255,.3);
+  font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;
+  cursor:pointer;text-align:center;transition:all .2s;
+}
+.step-btn.active{border-bottom-color:var(--gold);color:var(--gold)}
+.step-num{font-size:16px;font-weight:700;margin-bottom:2px}
+
+/* ── CONTENT ── */
+.content{
+  background:var(--cream);min-height:100vh;
+  padding:22px 14px 80px;position:relative;
+}
+.watermark{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-40%);
+  width:75vw;max-width:320px;opacity:.06;pointer-events:none;z-index:0;
+}
+
+/* ── SECTION TITLE ── */
+.section-title{
+  font-family:'Cinzel',serif;font-size:20px;font-weight:700;
+  color:#0f172a;margin-bottom:4px;
+}
+.section-sub{font-size:13px;color:#64748b;margin-bottom:20px}
+
+/* ── CATEGORY BADGE ── */
+.cat-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  background:linear-gradient(135deg,#0f766e,#0d9488);
+  color:#fff;font-size:12px;font-weight:600;
+  padding:7px 18px;border-radius:100px;margin-bottom:14px;
+  box-shadow:0 4px 14px rgba(13,148,136,.3);letter-spacing:.3px;
+}
+
+/* ── ITEMS GRID ── */
+.items-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
+.item-card{
+  background:#fff;border-radius:16px;padding:14px 12px;
+  border:1.5px solid #e2e8f0;
+  box-shadow:0 2px 8px rgba(15,23,42,.05);
+  transition:all .2s;cursor:pointer;position:relative;overflow:hidden;
+}
+.item-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--teal),var(--gold));
+  opacity:0;transition:opacity .2s;
+}
+.item-card.selected{
+  border-color:var(--gold);
+  background:linear-gradient(135deg,#fffbeb,#fff7ed);
+  box-shadow:0 4px 20px rgba(201,151,58,.15);
+}
+.item-card.selected::before{opacity:1}
+.item-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(15,23,42,.1)}
+.check-mark{
+  position:absolute;top:8px;right:8px;width:18px;height:18px;
+  background:var(--gold);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:#fff;font-weight:700;
+}
+.item-name{font-size:13px;font-weight:600;color:#0f172a;margin-bottom:3px}
+.item-kn{
+  font-size:11px;font-weight:700;color:#b45309;
+  background:#fef3c7;padding:2px 8px;border-radius:6px;
+  display:inline-block;margin-bottom:8px;border:1px solid #fde68a;
+}
+.qty-row{display:flex;align-items:center;gap:6px}
+.qty-label{font-size:11px;color:#64748b}
+.qty-input{
+  flex:1;padding:5px;border:1.5px solid #e2e8f0;border-radius:8px;
+  font-size:14px;font-weight:600;text-align:center;color:#0f172a;
+  background:#f8fafc;outline:none;font-family:'DM Sans',sans-serif;
+}
+.qty-input:focus{border-color:var(--gold)}
+
+/* ── FLOAT CART ── */
+.float-cart{
+  position:fixed;bottom:22px;right:16px;z-index:99;
+  background:linear-gradient(135deg,#c9973a,#f5d07a);
+  color:#0f172a;font-weight:700;font-size:13px;
+  padding:13px 22px;border-radius:100px;border:none;cursor:pointer;
+  box-shadow:0 8px 30px rgba(201,151,58,.45);
+  display:flex;align-items:center;gap:8px;
+  font-family:'DM Sans',sans-serif;
+  animation:floatBounce 2s ease-in-out infinite;
+  transition:transform .15s;
+}
+.float-cart:hover{transform:scale(1.05)}
+@keyframes floatBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+/* ── CONTINUE BTN ── */
+.continue-btn{
+  width:100%;padding:16px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,#0f172a,#1e293b);
+  color:#fff;font-size:15px;font-weight:600;cursor:pointer;
+  font-family:'DM Sans',sans-serif;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  box-shadow:0 6px 20px rgba(15,23,42,.3);transition:all .2s;
+  position:relative;overflow:hidden;
+}
+.continue-btn::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(201,151,58,.15),transparent);
+  opacity:0;transition:opacity .2s;
+}
+.continue-btn:hover::after{opacity:1}
+.continue-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(15,23,42,.4)}
+
+/* ── FORM STYLES ── */
+.form-label{display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:6px;letter-spacing:.3px;text-transform:uppercase}
+.form-input{
+  width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:12px;
+  font-family:'DM Sans',sans-serif;font-size:15px;color:#0f172a;
+  background:#fff;outline:none;transition:border-color .2s,box-shadow .2s;
+}
+.form-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,151,58,.1)}
+.form-group{margin-bottom:16px}
+
+/* ── PAY CARDS ── */
+.pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.pay-card{
+  background:#fff;border:2px solid #e2e8f0;border-radius:16px;
+  padding:22px 12px;text-align:center;cursor:pointer;transition:all .22s;
+}
+.pay-card.selected{border-color:var(--gold);background:linear-gradient(135deg,#fffbeb,#fff7ed)}
+.pay-card:hover{border-color:var(--gold);transform:translateY(-2px)}
+.pay-icon{font-size:32px;margin-bottom:8px}
+.pay-label{font-size:15px;font-weight:700;color:#0f172a}
+.pay-sub{font-size:11px;color:#64748b;margin-top:3px}
+
+/* ── SUCCESS ── */
+.success-icon{
+  width:72px;height:72px;background:linear-gradient(135deg,#059669,#10b981);
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:32px;margin:0 auto 16px;
+  box-shadow:0 8px 24px rgba(5,150,105,.3);
+  animation:popIn .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes popIn{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- SPLASH SCREEN -->
+<div id="splash">
+  <div class="splash-glow-ring"></div>
+  <div class="splash-glow-ring2"></div>
+  <div class="splash-center">
+    <div class="splash-ring">
+      <div class="splash-ring-inner"></div>
+      <img src="/logo.png" alt="Swasthik Logo" class="splash-logo"
+        onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2248%22 fill=%22%23c9973a%22/><text x=%2250%22 y=%2260%22 font-size=%2244%22 font-weight=%22bold%22 text-anchor=%22middle%22 fill=%22white%22>S</text></svg>'"/>
+    </div>
+    <div class="splash-brand">SWASTHIK</div>
+    <div class="splash-kn">ಸ್ವಸ್ತಿಕ್ ಇವೆಂಟ್ ಮ್ಯಾನೇಜ್ಮೆಂಟ್</div>
+    <div class="splash-tagline">Event &amp; Rental Services · Kervashe</div>
+    <div class="splash-bar" id="spBar"><div class="splash-progress"></div></div>
+    <div class="splash-pct" id="pct">0%</div>
+    <div class="sp-swipe-prompt" id="swipePrompt">
+      <div class="swipe-chevron">👆</div>
+      <div class="swipe-text">SWIPE UP TO VIEW CATALOG</div>
+      <div class="swipe-sub">Swipe or Click here to explore items</div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-bg-glow"></div>
+    <div class="header-bg-glow2"></div>
+    <div class="header-inner">
+      <div class="header-top-row">
+        <div class="logo-badge">
+          <img src="/logo.png" alt="Swasthik" onerror="this.style.display='none'"/>
+        </div>
+        <button class="admin-btn">⚙ Admin</button>
+      </div>
+      <div class="location-pill">📍 Swasthik Event Management · Kervashe</div>
+      <div class="brand-name">SWASTHIK<br/><span>EVENT MANAGEMENT</span></div>
+      <div class="kannada-badge">ಸ್ವಸ್ತಿಕ್ ಇವೆಂಟ್ ಮ್ಯಾನೇಜ್ಮೆಂಟ್</div>
+      <div class="subtext">Serving all your event &amp; rental needs in Kervashe</div>
+      <div class="phone-row">
+        <a href="tel:9980535818" class="phone-link">📞 9980535818</a>
+        <a href="tel:9980437899" class="phone-link">📞 9980437899</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP NAV -->
+  <div class="step-nav">
+    <button class="step-btn active"><div class="step-num">1</div>Items</button>
+    <button class="step-btn"><div class="step-num">2</div>Details</button>
+    <button class="step-btn"><div class="step-num">3</div>Payment</button>
+    <button class="step-btn"><div class="step-num">4</div>Confirm</button>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    <img src="/logo.png" class="watermark" alt="" onerror="this.style.display='none'"/>
+
+    <div style="position:relative;z-index:1">
+      <div class="section-title">Select Items</div>
+      <div class="section-sub">Type the quantity you need for each item.</div>
+
+      <!-- Furniture -->
+      <div class="cat-badge">🪑 Furniture &amp; Seating</div>
+      <div class="items-grid">
+        <div class="item-card selected">
+          <div class="check-mark">✓</div>
+          <div class="item-name">Chair</div><div class="item-kn">ಚೇಯರ್</div>
+          <div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" value="10" min="0"/></div>
+        </div>
+        <div class="item-card"><div class="item-name">Table</div><div class="item-kn">ಟೇಬಲ್</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Bench</div><div class="item-kn">ಬಾಲ್ಡಿ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Stool</div><div class="item-kn">ಮಣೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+      </div>
+
+      <!-- Cookware -->
+      <div class="cat-badge" style="background:linear-gradient(135deg,#9333ea,#7c3aed);box-shadow:0 4px 14px rgba(147,51,234,.3)">🍽️ Cookware &amp; Utensils</div>
+      <div class="items-grid">
+        <div class="item-card"><div class="item-name">Idli Vessel</div><div class="item-kn">ಇಡ್ಲಿ ಪಾತ್ರೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Kadayi</div><div class="item-kn">ಕಡಾಯಿ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Jaara</div><div class="item-kn">ಜಾರ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Valanka</div><div class="item-kn">ವಳಂಕ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Loota</div><div class="item-kn">ಲೋಟ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Mucchakal</div><div class="item-kn">ಮುಚ್ಚಳ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Tray / Tatte</div><div class="item-kn">ತಟ್ಟೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Anna Marige</div><div class="item-kn">ಅನ್ನದ ಮರಿಗೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Wide Pots</div><div class="item-kn">ಅಗಲ ಸತ್ತಾಲು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Deep Pots</div><div class="item-kn">ಉದ್ದ ಸತ್ತಾಲು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Sosumarige</div><div class="item-kn">ಸೋಸುಮರಿಗೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Steel Handle</div><div class="item-kn">ಸ್ಟೀಲ್ ಕೈ ಹೆಂಡೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+      </div>
+
+      <!-- Event Setup -->
+      <div class="cat-badge" style="background:linear-gradient(135deg,#be123c,#e11d48);box-shadow:0 4px 14px rgba(190,18,60,.3)">🎪 Event Setup</div>
+      <div class="items-grid">
+        <div class="item-card"><div class="item-name">Shamiana</div><div class="item-kn">ಶಾಮಿಯಾನ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Pendal Shamiana</div><div class="item-kn">ಪೆಂಡಾಲ್ ಶಾಮಿಯಾನ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Iron Sheet</div><div class="item-kn">ತಗಡು ಶೀಟು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Cabin Walls</div><div class="item-kn">ಕಬ್ಬಿಣದ ಬಣಾಲೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Jilebi Kavali</div><div class="item-kn">ಜಿಲೇಬಿ ಕಾವಲಿ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Holige Press</div><div class="item-kn">ಹೊಳಿಗೆ ಹೆಂಚು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Garden / Topu</div><div class="item-kn">ತೋಪು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Huttu</div><div class="item-kn">ಹುಟ್ಟು</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+      </div>
+
+      <!-- Equipment -->
+      <div class="cat-badge" style="background:linear-gradient(135deg,#0369a1,#0284c7);box-shadow:0 4px 14px rgba(3,105,161,.3)">🔧 Equipment</div>
+      <div class="items-grid">
+        <div class="item-card"><div class="item-name">Chamche / Spade</div><div class="item-kn">ಚಮಚೆ (ಸ್ಸೋಟು)</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Iron Stool</div><div class="item-kn">ಕಬ್ಬಿಣದ ಸ್ಟ್ಳ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Saru Stool</div><div class="item-kn">ಸಾರು ಸ್ಟ್ಳಗ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Jagg</div><div class="item-kn">ಜಗ್ಗ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Hermane</div><div class="item-kn">ಹೇರಮಣೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Harivana</div><div class="item-kn">ಹರಿವಾಣ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Matchakshi</div><div class="item-kn">ಮಟ್ಟು/ಕಶ್ತಿ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Water Drum</div><div class="item-kn">ನೀರಿನ ಡ್ರಂ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Gas Stove</div><div class="item-kn">ಗ್ಯಾಸ್ ಒಲೆ</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+        <div class="item-card"><div class="item-name">Grinder</div><div class="item-kn">ಗ್ರೈಂಡರ್</div><div class="qty-row"><span class="qty-label">Qty:</span><input class="qty-input" type="number" placeholder="0" min="0"/></div></div>
+      </div>
+
+      <button class="continue-btn">Continue to Details &nbsp;→</button>
+    </div>
+  </div>
+
+  <!-- Float Cart -->
+  <button class="float-cart">🛒 1 item selected →</button>
+</div>
+
+<script>
+// Percentage counter & Swipe Up Trigger
+const pct = document.getElementById('pct');
+const spBar = document.getElementById('spBar');
+const swipePrompt = document.getElementById('swipePrompt');
+const splash = document.getElementById('splash');
+const app = document.getElementById('app');
+
+let n = 0;
+let swipeReady = false;
+let swipedUp = false;
+
+const ticker = setInterval(()=>{
+  n = Math.min(n + Math.floor(Math.random()*4)+1, 100);
+  if(pct) pct.textContent = n + '%';
+  if(n >= 100) {
+    clearInterval(ticker);
+    swipeReady = true;
+    if(spBar) spBar.style.display = 'none';
+    if(pct) pct.style.display = 'none';
+    if(swipePrompt) swipePrompt.style.display = 'flex';
+  }
+}, 28);
+
+function triggerSwipeUp() {
+  if (!swipeReady || swipedUp) return;
+  swipedUp = true;
+  splash.classList.add('hide');
+  setTimeout(()=>{
+    app.classList.add('show');
+    splash.style.display = 'none';
+  }, 650);
+}
+
+if (swipePrompt) {
+  swipePrompt.addEventListener('click', triggerSwipeUp);
+}
+
+let touchStartY = null;
+let swipeOffset = 0;
+
+splash.addEventListener('touchstart', (e) => {
+  if (!swipeReady || swipedUp) return;
+  touchStartY = e.touches[0].clientY;
+});
+
+splash.addEventListener('touchmove', (e) => {
+  if (!swipeReady || swipedUp || touchStartY === null) return;
+  const deltaY = touchStartY - e.touches[0].clientY;
+  if (deltaY > 0) {
+    swipeOffset = Math.min(deltaY, 250);
+    splash.style.transform = `translateY(-${swipeOffset}px)`;
+  }
+});
+
+splash.addEventListener('touchend', (e) => {
+  if (!swipeReady || swipedUp || touchStartY === null) return;
+  const deltaY = touchStartY - (e.changedTouches ? e.changedTouches[0].clientY : touchStartY);
+  touchStartY = null;
+  if (deltaY > 40 || swipeOffset > 40) {
+    triggerSwipeUp();
+  } else {
+    swipeOffset = 0;
+    splash.style.transform = '';
+  }
+});
+
+splash.addEventListener('wheel', (e) => {
+  if (!swipeReady || swipedUp) return;
+  if (e.deltaY > 15) {
+    triggerSwipeUp();
+  }
+});
+
+// Item card click to select
+document.querySelectorAll('.item-card').forEach(card=>{
+  card.addEventListener('click',function(e){
+    if(e.target.tagName==='INPUT') return;
+    this.classList.toggle('selected');
+    const existing = this.querySelector('.check-mark');
+    if(this.classList.contains('selected')){
+      if(!existing){
+        const mark = document.createElement('div');
+        mark.className='check-mark';mark.textContent='✓';
+        this.prepend(mark);
+      }
+    } else {
+      if(existing) existing.remove();
+    }
+  });
+});
+</script>
+</body>
+</html>
