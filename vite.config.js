@@ -12,11 +12,11 @@ export default defineConfig({
         enabled: true
       },
       manifest: {
-        name: 'Swasthik Enterprises',
+        name: 'Swasthik Event Management',
         short_name: 'Swasthik',
-        description: 'Event Rental App for Swasthik Enterprises',
-        theme_color: '#C9973A',
-        background_color: '#1a1207',
+        description: 'Event Rental App for Swasthik Event Management',
+        theme_color: '#d97706',
+        background_color: '#0f172a',
         display: 'standalone',
         icons: [
           {

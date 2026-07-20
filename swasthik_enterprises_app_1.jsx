@@ -624,7 +624,7 @@ export default function App() {
           <div className="sp-center">
             <div className="sp-ring">
               <div className="sp-ring-inner" />
-              <img src="/logo.png" alt="Swasthik" className="sp-logo" />
+              <img src="logo.png" alt="Swasthik" className="sp-logo" />
             </div>
             <div className="sp-brand">SWASTHIK</div>
             <div className="sp-kn">ಸ್ವಸ್ತಿಕ್ ಇವೆಂಟ್ ಮ್ಯಾನೇಜ್ಮೆಂಟ್</div>
@@ -654,7 +654,7 @@ export default function App() {
         <div className="hdr-glow2" />
         <div style={{ position: "relative", zIndex: 2 }}>
           <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <div className="logo-badge-hdr"><img src="/logo.png" alt="Swasthik" /></div>
+            <div className="logo-badge-hdr"><img src="logo.png" alt="Swasthik" /></div>
             <button onClick={() => { setShowPin(true); setPin(""); setPinErr(""); }}
               style={{ background: "rgba(201,151,58,.12)", border: "1px solid rgba(201,151,58,.35)", color: "#c9973a", fontSize: 10, fontWeight: 600, letterSpacing: 1.5, padding: "7px 14px", borderRadius: 100, cursor: "pointer", textTransform: "uppercase", fontFamily: "inherit" }}>
               ⚙ Admin
@@ -683,7 +683,7 @@ export default function App() {
 
       {/* CONTENT */}
       <div className="content-area">
-        <img src="/logo.png" className="watermark-bg" alt="" />
+        <img src="logo.png" className="watermark-bg" alt="" />
         <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* ── STEP 1: ITEMS ── */}

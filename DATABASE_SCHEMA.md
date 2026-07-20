@@ -80,7 +80,7 @@ Stores admin settings and configurations.
   businessName: "Swasthik Enterprises",    // Business name
   whatsappNumber: "919980535818",          // WhatsApp business number
   email: "info@swasthik.com",              // Business email
-  address: "Kervaje, Karnataka",           // Business address
+  address: "Kervashe, Karnataka",           // Business address
   
   // Configuration
   defaultPaymentMethod: "cash",            // Default payment option

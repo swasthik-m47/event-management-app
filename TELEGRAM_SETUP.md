@@ -85,7 +85,7 @@ Place a test order through the app. Within seconds you should get a Telegram mes
 📅 Event Date: 2026-06-20
 🔄 Return Date: 2026-06-21
 🎊 Event Type: Wedding / ಮದುವೆ
-📍 Venue: Kervaje Village
+📍 Venue: Kervashe Village
 💳 Payment: 💵 Cash on Delivery
 ━━━━━━━━━━━━━━━━━━━━
 📦 Items Ordered:
